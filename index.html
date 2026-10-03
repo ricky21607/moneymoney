@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分帳小工具</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,"Segoe UI","Noto Sans TC",sans-serif;background:#f5f6f8;color:#202124;margin:0}
+.container{max-width:1050px;margin:28px auto;padding:0 18px}
+h1{margin:0 0 6px;font-size:28px}.sub{color:#6b7280;margin-bottom:22px}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:0 2px 8px #00000008}
+h2{font-size:18px;margin:0 0 14px}
+.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+input,button{font:inherit}
+input[type=text],input[type=number]{border:1px solid #d1d5db;border-radius:9px;padding:9px 11px;background:#fff}
+input[type=number]{width:130px}
+button{border:0;border-radius:9px;padding:9px 14px;cursor:pointer;background:#111827;color:white}
+button.secondary{background:#eef0f3;color:#374151}
+button.danger{background:#fee2e2;color:#991b1b}
+.people{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.person{display:flex;align-items:center;gap:7px;background:#f3f4f6;padding:7px 10px;border-radius:20px}
+.person button{background:none;color:#9ca3af;padding:0 2px}
+.empty{color:#9ca3af;padding:10px 0}
+.item{border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin-top:10px}
+.itemhead{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.itemname{font-weight:650}.amount{font-weight:700}
+.meta{color:#6b7280;font-size:13px;margin-top:4px}
+.checks{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.check{display:flex;align-items:center;gap:6px;border:1px solid #d1d5db;border-radius:8px;padding:7px 10px;background:#fff;cursor:pointer}
+.check input{margin:0;width:16px;height:16px;accent-color:#2563eb}
+.check.on{background:#e8f0fe;border-color:#8ab4f8;color:#174ea6}
+.custom-toggle{font-size:13px;color:#4b5563;cursor:pointer;margin-top:10px;display:inline-block}
+.custom{display:none;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:9px}
+.custom.show{display:grid}
+.custom label{font-size:12px;color:#6b7280}.custom input{width:100%}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.balance{padding:13px;border-radius:10px;background:#f9fafb}
+.balance .name{font-weight:650}.pos{color:#087f5b}.neg{color:#b42318}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:10px;border-bottom:1px solid #eee}
+small{color:#6b7280}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.note{font-size:13px;color:#6b7280;line-height:1.6}
+@media(max-width:600px){.container{margin-top:15px}.itemhead{align-items:flex-start}.itemhead .row{justify-content:flex-end}}
+.home-tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.project-people-picker{display:flex;flex-wrap:wrap;gap:6px}</style>
+</head>
+<body>
+<style>
+.back{background:#eef0f3;color:#374151;margin-bottom:15px}
+.project-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.project-card{border:1px solid #e5e7eb;border-radius:13px;padding:16px;background:#fff;cursor:pointer;transition:.15s}
+.project-card:hover{border-color:#9ca3af;box-shadow:0 3px 12px #0000000c}
+.project-title{font-size:17px;font-weight:700}.project-date{font-size:13px;color:#6b7280;margin-top:5px}
+.project-count{font-size:13px;color:#6b7280;margin-top:12px}
+.project-actions{display:flex;gap:7px;margin-top:13px}
+.project-actions button{padding:6px 10px;font-size:13px}
+.modal-bg{position:fixed;inset:0;background:#0006;display:none;align-items:center;justify-content:center;padding:18px;z-index:10}
+.modal{background:white;border-radius:14px;padding:20px;width:min(430px,100%);box-shadow:0 15px 50px #0004}
+.field{margin-bottom:12px}.field label{display:block;font-size:13px;color:#6b7280;margin-bottom:5px}.field input{width:100%}
+</style>
+<div id="homePage" class="container">
+  <h1>分帳小工具</h1>
+  <div class="sub">建立一個活動／旅行／露營專案，每個專案的成員與帳目會分開保存。</div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">我的專案</h2>
+      <button onclick="openProjectModal()">＋ 新增專案</button>
+    </div>
+    <div id="projectList" class="project-grid" style="margin-top:14px"></div>
+<div class="home-tools">
+  <button class="secondary" onclick="openCommonPeople()">👥 常用成員</button>
+  <button class="secondary" onclick="exportBackup()">💾 存檔</button>
+  <button class="secondary" onclick="document.getElementById('backupFile').click()">📂 讀取存檔</button>
+  <input id="backupFile" type="file" accept=".json,application/json" style="display:none" onchange="importBackup(event)">
+</div>
+  </div>
+</div>
+<div id="projectModal" class="modal-bg">
+  <div class="modal">
+    <h2>新增專案</h2>
+    <div class="field"><label>專案名稱</label><input id="projectName" type="text" placeholder="例如：宜蘭露營"></div>
+    <div class="field"><label>日期</label><input id="projectDate" type="date"></div>
+    <div class="field">
+      <label>這次要加入的常用成員</label>
+      <div id="projectPeoplePicker" class="people"></div>
+    </div>
+    <div class="actions">
+      <button onclick="createProject()">建立</button>
+      <button class="secondary" onclick="closeProjectModal()">取消</button>
+    </div>
+  </div>
+</div>
+<div id="commonPeopleModal" class="modal-bg">
+  <div class="modal">
+    <h2>常用成員</h2>
+    <div class="sub">建立一次，之後新增專案直接勾選。</div>
+    <div id="commonPeopleList" style="margin:14px 0"></div>
+    <div class="row">
+      <input id="commonPersonInput" type="text" placeholder="輸入成員名字">
+      <button onclick="addCommonPerson()">加入</button>
+    </div>
+    <div class="actions">
+      <button class="secondary" onclick="closeCommonPeople()">關閉</button>
+    </div>
+  </div>
+</div>
+<div id="detailPage" class="container">
+  <button class="back" onclick="goHome()">← 回專案列表</button>
+    <h1 id="detailTitle">分帳小工具</h1>
+  <div id="detailSub" class="sub">目前專案</div>
+
+  <div class="card">
+    <h2>① 成員</h2>
+    <div class="row">
+      <input id="personInput" type="text" placeholder="輸入名字">
+      <button onclick="addPerson()">加入</button>
+    </div>
+    <div id="people" class="people"></div>
+    <div class="note">例如：阿齊、A、B、C。刪除成員前，已存在的帳目不會自動刪除。</div>
+  </div>
+
+  <div class="card">
+    <h2>② 新增費用</h2>
+    <div class="row">
+      <input id="itemName" type="text" placeholder="項目，例如：晚餐">
+      <input id="itemAmount" type="number" min="0" step="0.01" placeholder="總金額">
+      <select id="payer" style="padding:9px;border:1px solid #d1d5db;border-radius:9px;background:#fff"></select>
+      <button onclick="addItem()">新增費用</button>
+    </div>
+    <div id="itemList"></div>
+  </div>
+
+  <div class="card">
+    <h2>③ 最後結算</h2>
+    <div id="balances" class="summary"></div>
+    <div id="settlements" style="margin-top:16px"></div>
+    <div class="actions">
+      <button class="secondary" onclick="clearCurrentProject()">全部清除</button>
+      <button class="secondary" onclick="exportData()">匯出資料</button>
+      <label class="secondary" style="display:inline-flex;align-items:center;cursor:pointer">
+        匯入資料 <input id="importFile" type="file" accept=".json" onchange="importData(event)" style="display:none">
+      </label>
+    </div>
+  </div>
+</div>
+
+<script>
+let projects=[];
+let currentProjectId=null;
+let data={people:[],items:[]};
+
+function money(n){return Math.round((n + Number.EPSILON)*100)/100}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function save(){
+  const p=projects.find(x=>x.id===currentProjectId);
+  if(p){p.people=data.people;p.items=data.items}
+  localStorage.setItem('splitToolProjects',JSON.stringify(projects));
+  render();
+}
+function load(){
+  try{
+    const x=JSON.parse(localStorage.getItem('splitToolProjects'));
+    if(Array.isArray(x)) projects=x;
+    else {
+      const old=JSON.parse(localStorage.getItem('splitToolData'));
+      if(old&&Array.isArray(old.people)&&Array.isArray(old.items))
+        projects=[{id:Date.now(),name:'未命名專案',date:'',people:old.people,items:old.items}];
+    }
+  }catch(e){}
+  goHome();
+}
+function openProjectModal(){
+  document.getElementById('projectName').value='';
+  document.getElementById('projectDate').value='';
+  document.getElementById('projectModal').style.display='flex';
+  setTimeout(()=>document.getElementById('projectName').focus(),50);
+
+  renderProjectPeoplePicker();
+}
+function closeProjectModal(){document.getElementById('projectModal').style.display='none'}
+function createProject(){
+  const name=document.getElementById('projectName').value.trim();
+  const date=document.getElementById('projectDate').value;
+  if(!name){alert('請輸入專案名稱');return}
+  const people=getSelectedProjectPeople();
+  const project={id:Date.now()+Math.random(),name,date,people,items:[]};
+  projects.unshift(project);
+  localStorage.setItem('splitToolProjects',JSON.stringify(projects));
+  closeProjectModal();
+  openProject(project.id);
+}
+function formatDate(s){
+  if(!s)return '未設定日期';
+  const d=new Date(s+'T00:00:00');
+  return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+}
+function openProject(id){
+  const p=projects.find(x=>x.id===id);if(!p)return;
+  currentProjectId=id;
+  data={
+    people:Array.isArray(p.people)?p.people:[],
+    items:Array.isArray(p.items)?p.items:[]
+  };
+  data.items.forEach(item=>{
+    item.selected=item.selected||{};
+    data.people.forEach(person=>{
+      if(typeof item.selected[person] !== 'boolean') item.selected[person]=true;
+    });
+  });
+  document.getElementById('homePage').style.display='none';
+  document.getElementById('detailPage').style.display='block';
+  document.getElementById('detailTitle').textContent=p.name;
+  document.getElementById('detailSub').textContent=p.date?formatDate(p.date):'未設定日期';
+  render();window.scrollTo(0,0);
+}
+function goHome(){
+  currentProjectId=null;
+  document.getElementById('detailPage').style.display='none';
+  document.getElementById('homePage').style.display='block';
+  renderProjects();
+}
+function deleteProject(id){
+  const p=projects.find(x=>x.id===id);if(!p)return;
+  if(confirm(`確定刪除「${p.name}」？裡面的成員與所有帳目也會一起刪除。`)){
+    projects=projects.filter(x=>x.id!==id);
+    localStorage.setItem('splitToolProjects',JSON.stringify(projects));
+    renderProjects();
+  }
+}
+function renderProjects(){
+  const el=document.getElementById('projectList');
+  if(!projects.length){
+    el.innerHTML='<div class="empty" style="grid-column:1/-1">還沒有專案，建立第一個活動吧。</div>';return;
+  }
+  el.innerHTML=projects.map(p=>`
+    <div class="project-card" onclick="openProject(${p.id})">
+      <div class="project-title">${esc(p.name)}</div>
+      <div class="project-date">${p.date?formatDate(p.date):'未設定日期'}</div>
+      <div class="project-count">${(p.people||[]).length} 位成員 · ${(p.items||[]).length} 筆費用</div>
+      <div class="project-actions">
+        <button class="secondary" onclick="event.stopPropagation();openProject(${p.id})">進入</button>
+        <button class="danger" onclick="event.stopPropagation();deleteProject(${p.id})">刪除</button>
+      </div>
+    </div>`).join('');
+}
+
+function addPerson(){
+  const el=document.getElementById('personInput');
+  if(!el || !currentProjectId)return;
+  const name=el.value.trim();
+  if(!name)return;
+  if(data.people.includes(name)){alert('這個名字已經存在');return}
+
+  data.people.push(name);
+
+  // 新成員不參與之前已存在的費用
+  data.items.forEach(item=>{
+    item.selected=item.selected||{};
+    item.selected[name]=false;
+  });
+
+  el.value='';
+  save();
+}
+function bindPersonEnter(){
+  const el=document.getElementById('personInput');
+  if(el) el.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();addPerson()}}
+}
+
+function removePerson(name){
+  if(data.items.some(x=>x.payer===name || Object.keys(x.shares||{}).includes(name))){
+    if(!confirm('這個人已經出現在帳目中，確定仍要刪除嗎？'))return;
+  }
+  data.people=data.people.filter(x=>x!==name);save()
+}
+
+function addItem(){
+  if(!data.people.length){alert('請先加入成員');return}
+  const name=document.getElementById('itemName').value.trim() || '未命名項目';
+  const amount=Number(document.getElementById('itemAmount').value);
+  const payer=document.getElementById('payer').value;
+  if(!(amount>0)){alert('請輸入有效金額');return}
+  const selected={};
+  data.people.forEach(p=>selected[p]=true);
+  data.items.push({id:Date.now()+Math.random(),name,amount,payer,selected,custom:false,shares:{}});
+  document.getElementById('itemName').value='';document.getElementById('itemAmount').value='';save()
+}
+
+function togglePerson(id,p,checked){
+  const item=data.items.find(x=>x.id==id);
+  if(!item || !data.people.includes(p))return;
+  item.selected=item.selected||{};
+  item.selected[p]=checked===true;
+  save();
+}
+function selectAll(id,value){
+  const item=data.items.find(x=>x.id==id); if(!item)return;
+  item.selected = item.selected || {};
+  data.people.forEach(p=>item.selected[p]=value);
+  save()
+}
+function toggleCustom(id){
+  const item=data.items.find(x=>x.id==id); if(!item)return;
+  item.custom=!item.custom;save()
+}
+function setShare(id,p,v){
+  const item=data.items.find(x=>x.id==id); if(!item)return;
+  item.shares[p]=Math.max(0,Number(v)||0);save()
+}
+function deleteItem(id){data.items=data.items.filter(x=>x.id!=id);save()}
+
+function render(){
+  if(!currentProjectId){renderProjects();return}
+  document.getElementById('people').innerHTML=data.people.length
+    ? data.people.map(p=>`<div class="person">${esc(p)} <button onclick="removePerson(${JSON.stringify(p)})">×</button></div>`).join('')
+    : '<div class="empty">尚未加入成員</div>';
+
+  const payer=document.getElementById('payer');
+  payer.innerHTML=data.people.length
+    ? data.people.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('')
+    : '<option>請先加入成員</option>';
+
+  document.getElementById('itemList').innerHTML=data.items.length
+    ? data.items.map(item=>{
+      item.selected=item.selected||{};
+      const selected=data.people.filter(p=>item.selected[p]===true);
+      const shareTotal=selected.reduce((s,p)=>s+(Number(item.shares?.[p])||0),0);
+      const per=selected.length?money(item.amount/selected.length):0;
+      const customOk=Math.abs(shareTotal-item.amount)<0.01;
+      return `<div class="item">
+        <div class="itemhead">
+          <div><div class="itemname">${esc(item.name)}</div><div class="meta">付款人：${esc(item.payer)}　·　${selected.length} 人分攤</div></div>
+          <div class="row"><span class="amount">$${money(item.amount).toFixed(2)}</span><button class="danger" onclick="deleteItem(${item.id})">刪除</button></div>
+        </div>
+        <div style="margin-top:12px;font-size:13px;font-weight:650">分攤的人：</div>
+        <div class="checks">
+          ${data.people.map(p=>`<label class="check ${item.selected[p]===true?'on':''}">
+            <input type="checkbox"
+              data-action="toggle-person"
+              data-item-id="${item.id}"
+              data-person="${esc(p)}"
+              ${item.selected[p]===true?'checked':''}>
+            ${esc(p)}
+          </label>`).join('')}
+        </div>
+        <div class="actions" style="margin-top:8px">
+          <button class="secondary" onclick="selectAll(${item.id},true)">全部選取</button>
+          <button class="secondary" onclick="selectAll(${item.id},false)">全部取消</button>
+        </div>
+        <div class="meta" style="margin-top:10px;font-weight:650;color:#374151">
+          ${item.custom ? `目前自訂分攤合計：$${money(shareTotal).toFixed(2)} ${customOk?'✓':'⚠ 尚未等於總金額'}` :
+          selected.length ? `目前每人分攤：$${per.toFixed(2)}` : '目前沒有選擇任何分攤人'}
+        </div>
+        <span class="custom-toggle" onclick="toggleCustom(${item.id})">${item.custom?'▾ 隱藏自訂分攤':'▸ 自訂每個人的分攤金額'}</span>
+        <div class="custom ${item.custom?'show':''}">
+          ${selected.map(p=>`<label>${esc(p)}<input type="number" min="0" step="0.01" value="${item.shares?.[p]??''}" placeholder="${per.toFixed(2)}" onchange="setShare(${item.id},${JSON.stringify(p)},this.value)"></label>`).join('')}
+        </div>
+      </div>`
+    }).join('')
+    : '<div class="empty">還沒有費用。新增第一筆吧。</div>'
+  calculate();
+}
+
+function calculate(){
+  const paid={}, owed={};
+  data.people.forEach(p=>{paid[p]=0;owed[p]=0});
+  let invalid=[];
+  for(const item of data.items){
+    if(!paid.hasOwnProperty(item.payer)) paid[item.payer]=0;
+    paid[item.payer]+=Number(item.amount)||0;
+    item.selected=item.selected||{};
+    const selected=data.people.filter(p=>item.selected[p]===true);
+    if(!selected.length){invalid.push(`${item.name} 沒有人分攤`);continue}
+    if(item.custom){
+      const total=selected.reduce((s,p)=>s+(Number(item.shares?.[p])||0),0);
+      if(Math.abs(total-item.amount)>=0.01) invalid.push(`${item.name} 自訂分攤合計不等於 $${money(item.amount).toFixed(2)}`);
+      selected.forEach(p=>owed[p]=(owed[p]||0)+(Number(item.shares?.[p])||0));
+    }else{
+      const per=item.amount/selected.length;
+      selected.forEach(p=>owed[p]=(owed[p]||0)+per);
+    }
+  }
+  const net={};data.people.forEach(p=>net[p]=money((paid[p]||0)-(owed[p]||0)));
+  document.getElementById('balances').innerHTML=data.people.length
+    ? data.people.map(p=>`<div class="balance"><div class="name">${esc(p)}</div><div class="${net[p]>=0?'pos':'neg'}">${net[p]>=0?'+':''}$${net[p].toFixed(2)}</div><small>代墊 $${money(paid[p]||0).toFixed(2)} · 應付 $${money(owed[p]||0).toFixed(2)}</small></div>`).join('')
+    : '<div class="empty">先加入成員</div>';
+
+  let creditors=data.people.filter(p=>net[p]>0.005).map(p=>({p,v:net[p]})).sort((a,b)=>b.v-a.v);
+  let debtors=data.people.filter(p=>net[p]<-0.005).map(p=>({p,v:-net[p]})).sort((a,b)=>b.v-a.v);
+  const tx=[];
+  let i=0,j=0;
+  while(i<debtors.length&&j<creditors.length){
+    const x=Math.min(debtors[i].v,creditors[j].v);
+    if(x>0.005)tx.push(`${esc(debtors[i].p)} → ${esc(creditors[j].p)}　<b>$${money(x).toFixed(2)}</b>`);
+    debtors[i].v-=x;creditors[j].v-=x;
+    if(debtors[i].v<0.005)i++;
+    if(creditors[j].v<0.005)j++;
+  }
+  document.getElementById('settlements').innerHTML=invalid.length
+    ? `<div style="color:#b42318;margin-bottom:12px">⚠ ${invalid.join('、')}</div>`
+    : (tx.length?`<table><thead><tr><th>誰</th><th>給誰</th><th>金額</th></tr></thead><tbody>${tx.map(t=>`<tr><td colspan="3">${t}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">目前不用互相轉帳，已結清。</div>');
+}
+
+function clearCurrentProject(){
+  if(confirm('確定要清除本專案全部成員與帳目嗎？')){data={people:[],items:[]};save()}
+}
+function exportData(){
+  const p=projects.find(x=>x.id===currentProjectId);
+  const out=p||data;
+  const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(p?p.name:'分帳資料')+'.json';a.click();URL.revokeObjectURL(a.href)
+}
+function importData(e){
+  const file=e.target.files[0];if(!file)return;
+  const r=new FileReader();
+  r.onload=()=>{try{
+    const x=JSON.parse(r.result);
+    if(!Array.isArray(x.people)||!Array.isArray(x.items))throw 0;
+    data={people:x.people,items:x.items};save()
+  }catch{alert('檔案格式不正確')}};
+  r.readAsText(file);e.target.value=''
+}
+bindPersonEnter();
+
+const itemListEl=document.getElementById('itemList');
+if(itemListEl){
+  itemListEl.onchange=e=>{
+    const input=e.target.closest('input[data-action="toggle-person"]');
+    if(!input)return;
+    const id=Number(input.dataset.itemId);
+    const person=input.dataset.person;
+    togglePerson(id,person,input.checked);
+  };
+}
+
+load();
+
+
+let commonPeople=[];
+
+function loadCommonPeople(){
+  try{
+    const x=JSON.parse(localStorage.getItem('splitToolCommonPeople')||'[]');
+    commonPeople=Array.isArray(x)?x:[];
+  }catch(e){commonPeople=[]}
+}
+function saveCommonPeople(){
+  localStorage.setItem('splitToolCommonPeople',JSON.stringify(commonPeople));
+}
+function openCommonPeople(){
+  renderCommonPeople();
+  document.getElementById('commonPeopleModal').style.display='flex';
+}
+function closeCommonPeople(){
+  document.getElementById('commonPeopleModal').style.display='none';
+}
+function renderCommonPeople(){
+  const el=document.getElementById('commonPeopleList');
+  el.innerHTML=commonPeople.length
+    ? commonPeople.map((p,i)=>`<div class="row" style="justify-content:space-between;margin:6px 0"><span>${esc(p)}</span><button class="secondary" onclick="removeCommonPerson(${i})">刪除</button></div>`).join('')
+    : '<div class="sub">目前沒有常用成員。</div>';
+}
+function addCommonPerson(){
+  const el=document.getElementById('commonPersonInput');
+  const name=el.value.trim();
+  if(!name)return;
+  if(commonPeople.includes(name)){alert('這個名字已經存在');return}
+  commonPeople.push(name);
+  saveCommonPeople();
+  el.value='';
+  renderCommonPeople();
+  renderProjectPeoplePicker();
+}
+function removeCommonPerson(i){
+  if(!confirm(`確定刪除「${commonPeople[i]}」？`))return;
+  commonPeople.splice(i,1);
+  saveCommonPeople();
+  renderCommonPeople();
+  renderProjectPeoplePicker();
+}
+function renderProjectPeoplePicker(){
+  const el=document.getElementById('projectPeoplePicker');
+  if(!el)return;
+  if(!commonPeople.length){
+    el.innerHTML='<div class="sub">尚未建立常用成員，可直接建立專案後再新增。</div>';
+    return;
+  }
+  el.innerHTML=commonPeople.map((p,i)=>
+    `<label class="check on"><input type="checkbox" data-project-person="${i}" checked> ${esc(p)}</label>`
+  ).join('');
+}
+function getSelectedProjectPeople(){
+  const el=document.getElementById('projectPeoplePicker');
+  if(!el)return[];
+  return [...el.querySelectorAll('input[data-project-person]:checked')]
+    .map(x=>commonPeople[Number(x.dataset.projectPerson)])
+    .filter(Boolean);
+}
+
+function exportBackup(){
+  const payload={version:1,exportedAt:new Date().toISOString(),projects,commonPeople};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='分帳工具備份_'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+function importBackup(event){
+  const file=event.target.files[0];
+  event.target.value='';
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const p=JSON.parse(reader.result);
+      if(!p || !Array.isArray(p.projects) || !Array.isArray(p.commonPeople))throw 0;
+      if(!confirm('讀取存檔會覆蓋目前的專案與常用成員，確定嗎？'))return;
+      projects=p.projects;
+      commonPeople=p.commonPeople;
+      localStorage.setItem('splitToolProjects',JSON.stringify(projects));
+      saveCommonPeople();
+      currentProjectId=null;
+      document.getElementById('detailPage').style.display='none';
+      document.getElementById('homePage').style.display='block';
+      renderProjects();
+      alert('存檔讀取完成');
+    }catch(e){alert('存檔讀取失敗：格式不正確');}
+  };
+  reader.readAsText(file);
+}
+
+loadCommonPeople();
+const cpi=document.getElementById('commonPersonInput');
+if(cpi)cpi.addEventListener('keydown',e=>{if(e.key==='Enter')addCommonPerson()});
+// 初始化：只顯示專案首頁
+renderProjects();
+document.getElementById('detailPage').style.display='none';
+</script>
+</body>
+</html>
